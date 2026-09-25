@@ -30,7 +30,9 @@ export interface DashboardProfile {
 export type UserRole = 'master' | 'admin';
 
 export interface UserPreferences {
-  customBackgroundUrl?: string;
+  customBackgroundUrl?: string; // Legacy fallback
+  customBackgroundDayUrl?: string; // Tema Dia (Light mode)
+  customBackgroundNightUrl?: string; // Tema Noite (Dark mode)
   defaultAdminProfileId?: string;
 }
 
@@ -47,6 +49,7 @@ export interface UserUpdatePayload {
   email?: string;
   password?: string;
   nickname?: string;
+  role?: UserRole;
   preferences?: UserPreferences;
 }
 
@@ -93,4 +96,78 @@ export interface AppClickStat {
   uniqueUsersCount: number;
   lastClickedAt?: number;
   type?: 'app' | 'youtube_video';
+}
+
+export type TicketStatus = 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent' | string;
+export type TicketCategory = 'hardware' | 'software' | 'network' | 'access' | 'printer' | 'other' | string;
+
+export interface TicketDepartmentOption {
+  id: string;
+  name: string;
+  sortOrder?: number;
+}
+
+export interface TicketCategoryOption {
+  id: string;
+  name: string;
+  icon: string;
+  sortOrder?: number;
+}
+
+export interface TicketPriorityOption {
+  id: string;
+  name: string;
+  level: string;
+  color: string; // 'emerald' | 'sky' | 'amber' | 'rose' | 'purple'
+  sortOrder?: number;
+}
+
+export interface TicketConfigOptions {
+  departments: TicketDepartmentOption[];
+  categories: TicketCategoryOption[];
+  priorities: TicketPriorityOption[];
+}
+
+export interface TicketAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size?: number;
+  dataUrl: string;
+}
+
+export interface TicketComment {
+  id: string;
+  ticketId: string;
+  userId: string;
+  userNickname: string;
+  userRole: UserRole;
+  message: string;
+  isInternalNote?: boolean;
+  attachments?: TicketAttachment[];
+  timestamp: number;
+}
+
+export interface Ticket {
+  id: string;
+  ticketNumber: number;
+  title: string;
+  description: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  department: string;
+  creatorId: string;
+  creatorNickname: string;
+  creatorEmail: string;
+  assignedToId?: string;
+  assignedToNickname?: string;
+  createdAt: number;
+  updatedAt: number;
+  closedAt?: number;
+  attachments?: TicketAttachment[];
+  commentsCount?: number;
+  satisfactionRating?: number;
+  satisfactionFeedback?: string;
 }

@@ -5,9 +5,16 @@ import { UserFormModal } from './UserFormModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { PublishDataModal } from './PublishDataModal';
 import { SyncBgModal } from './SyncBgModal';
-import { EditIcon, DeleteIcon, PlusIcon, ImageIcon, DragHandleIcon, UserIcon, EyeOffIcon, EyeIcon, SpinnerIcon, CogIcon, SearchIcon, CloudUploadIcon, ChartBarIcon, StarIcon } from './icons';
+import { EditIcon, DeleteIcon, PlusIcon, ImageIcon, DragHandleIcon, UserIcon, EyeOffIcon, EyeIcon, SpinnerIcon, CogIcon, SearchIcon, CloudUploadIcon, ChartBarIcon, StarIcon, SunIcon, MoonIcon, TicketIcon, SparklesIcon } from './icons';
 import { ClickAnalyticsView } from './ClickAnalyticsView';
 import { AppFavicon } from './AppFavicon';
+import { TicketsView } from './TicketsView';
+import {
+  getGoogleFaviconUrl,
+  getDomainFromUrl,
+  isLocalOrIntranetUrl,
+  clearFaviconCache,
+} from '../services/favicon';
 
 interface AdminPanelProps {
   apps: ApplicationLink[];
@@ -23,9 +30,11 @@ interface AdminPanelProps {
   onAddDashboardProfile: (name: string) => Promise<void>;
   onDeleteDashboardProfile: (profileId: string) => Promise<void>;
   onCloneDashboard: (sourceProfileId: string, newDashboardName: string) => Promise<DashboardProfile | null>;
+  ticketsMenuEnabled?: boolean;
+  onToggleTicketsMenu?: (enabled: boolean) => Promise<void>;
 }
 
-type PendingUserAction = { type: 'deleteUser'; id: string; userEmail: string } | null;
+type PendingUserAction = { type: 'deleteUser'; id: string; userEmail: string; userNickname: string } | null;
 
 interface AppsManagerProps {
   allApps: ApplicationLink[];
@@ -125,6 +134,31 @@ const AppsManager: React.FC<AppsManagerProps> = ({ allApps, onSaveAllApps, activ
     await onSaveAllApps(newFullAppList);
   };
 
+  const [isRefreshingFavicons, setIsRefreshingFavicons] = useState(false);
+  const [faviconSuccess, setFaviconSuccess] = useState(false);
+
+  const handleRefreshFavicons = async () => {
+    if (isReadOnly) return;
+    setIsRefreshingFavicons(true);
+    clearFaviconCache();
+    const updatedApps = allApps.map(app => {
+      if (app.ownerId === activeProfileId && app.url && !isLocalOrIntranetUrl(app.url)) {
+        const domain = getDomainFromUrl(app.url);
+        if (domain) {
+          return {
+            ...app,
+            iconUrl: getGoogleFaviconUrl(domain, 128)
+          };
+        }
+      }
+      return app;
+    });
+    await onSaveAllApps(updatedApps);
+    setIsRefreshingFavicons(false);
+    setFaviconSuccess(true);
+    setTimeout(() => setFaviconSuccess(false), 3000);
+  };
+
   const handleDeleteApp = () => {
     if (!appToDelete || isReadOnly) return;
     const newFullAppList = allApps.filter(app => app.id !== appToDelete.id);
@@ -176,12 +210,32 @@ const AppsManager: React.FC<AppsManagerProps> = ({ allApps, onSaveAllApps, activ
             />
         </div>
       </div>
-       <div className="flex justify-end mb-4">
+       <div className="flex items-center justify-end gap-3 mb-4 flex-wrap">
+         {faviconSuccess && (
+           <span className="text-xs text-emerald-400 font-medium animate-fade-in">
+             ✓ Favicons originais atualizados com sucesso!
+           </span>
+         )}
          {!isReadOnly && (
-            <button onClick={handleOpenAddModal} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-accent hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-accent transition-colors">
-            <PlusIcon className="w-5 h-5 mr-2" /> Adicionar App
-            </button>
-        )}
+           <>
+             <button
+               onClick={handleRefreshFavicons}
+               disabled={isRefreshingFavicons}
+               className="inline-flex items-center px-3.5 py-2 border border-slate-700 rounded-md text-sm font-medium text-text-primary bg-secondary hover:bg-slate-700 focus:outline-none transition-colors shadow-sm disabled:opacity-50"
+               title="Buscar e atualizar favicons originais de todos os apps deste perfil pelo Google S2 HD"
+             >
+               {isRefreshingFavicons ? (
+                 <SpinnerIcon className="w-4 h-4 mr-2 animate-spin text-accent" />
+               ) : (
+                 <SparklesIcon className="w-4 h-4 mr-2 text-accent" />
+               )}
+               Atualizar Favicons Originais
+             </button>
+             <button onClick={handleOpenAddModal} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-accent hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-accent transition-colors">
+               <PlusIcon className="w-5 h-5 mr-2" /> Adicionar App
+             </button>
+           </>
+         )}
       </div>
       <div className="bg-card-background border border-border-color shadow-xl rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-border-color">
@@ -266,9 +320,9 @@ const AppsManager: React.FC<AppsManagerProps> = ({ allApps, onSaveAllApps, activ
         isOpen={!!appToDelete} 
         onClose={() => setAppToDelete(null)} 
         onConfirm={handleDeleteApp} 
-        title="Confirmar Exclusão" 
-        message={`Excluir permanentemente o aplicativo "${appToDelete?.name}"?`}
-        confirmButtonText="Excluir App"
+        title="⚠️ Aviso: Confirmar Exclusão" 
+        message={`Atenção: Tem certeza de que deseja excluir permanentemente o aplicativo "${appToDelete?.name}"? Esta ação removerá o atalho do dashboard e do banco de dados.`}
+        confirmButtonText="Sim, Excluir App"
         confirmButtonVariant="danger"
       />
     </>
@@ -334,7 +388,7 @@ const UsersManager: React.FC<Pick<AdminPanelProps, 'users' | 'currentUser' | 'on
     };
 
     const handleOpenDeleteConfirm = (user: User) => {
-        setPendingAction({ type: 'deleteUser', id: user.id, userEmail: user.email });
+        setPendingAction({ type: 'deleteUser', id: user.id, userEmail: user.email, userNickname: user.nickname });
     };
 
     const handleConfirmAction = async () => {
@@ -347,9 +401,9 @@ const UsersManager: React.FC<Pick<AdminPanelProps, 'users' | 'currentUser' | 'on
     const getConfirmationModalProps = () => {
         if (pendingAction?.type === 'deleteUser') {
             return {
-                title: "Confirmar Exclusão de Usuário",
-                message: `Excluir permanentemente o usuário "${pendingAction.userEmail}"?`,
-                confirmButtonText: "Excluir Usuário",
+                title: "⚠️ Atenção: Confirmar Exclusão de Usuário",
+                message: `ATENÇÃO: Esta ação é definitiva e irreversível! Você tem certeza de que deseja excluir permanentemente o usuário "${pendingAction.userNickname}" (${pendingAction.userEmail})?\n\nTodos os atalhos vinculados a esta conta, suas permissões e preferências serão removidos do banco de dados SQLite da sua VPS. Esta ação não poderá ser desfeita.`,
+                confirmButtonText: "Sim, Excluir Usuário",
                 confirmButtonVariant: 'danger' as const,
             };
         }
@@ -396,31 +450,68 @@ const UsersManager: React.FC<Pick<AdminPanelProps, 'users' | 'currentUser' | 'on
                     </div>
                 </div>
                 <div className="lg:col-span-2">
-                    <h2 className="text-2xl font-bold text-text-primary mb-4">Lista de Usuários</h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-bold text-text-primary">Lista de Usuários</h2>
+                        <span className="text-xs text-text-secondary bg-secondary px-3 py-1 rounded-full border border-border-color">
+                            Total: <strong className="text-text-primary">{users.length}</strong> usuário(s)
+                        </span>
+                    </div>
                     <div className="bg-card-background border border-border-color shadow-lg rounded-lg overflow-hidden">
                         <ul className="divide-y divide-border-color">
-                            {users.map(user => (
-                                <li key={user.id} className="p-4 flex justify-between items-center hover:bg-background/50">
-                                    <div className="flex items-center">
-                                        <UserIcon className="w-6 h-6 mr-4 text-text-secondary" />
-                                        <div>
-                                            <p className="text-sm font-medium text-text-primary">{user.nickname}</p>
-                                            <p className="text-xs text-text-secondary">{user.email}</p>
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'master' ? 'bg-amber-500/20 text-amber-300' : 'bg-sky-500/20 text-sky-300'}`}>{user.role}</span>
+                            {users.map(user => {
+                                const isSelf = currentUser.id === user.id;
+                                return (
+                                    <li key={user.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-background/50 transition-colors">
+                                        <div className="flex items-center">
+                                            <div className="p-2.5 rounded-full bg-secondary text-text-secondary mr-3.5 border border-border-color/60">
+                                                <UserIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-semibold text-text-primary">{user.nickname}</p>
+                                                    {isSelf && (
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent/20 text-accent border border-accent/30">
+                                                            Você
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-text-secondary">{user.email}</p>
+                                                <div className="mt-1">
+                                                    <span className={`px-2 py-0.5 inline-flex text-[11px] leading-4 font-semibold rounded-full ${user.role === 'master' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'}`}>
+                                                        {user.role === 'master' ? 'Master Admin' : 'Usuário Padrão'}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    {currentUser.id !== user.id && (
-                                        <div className="flex items-center space-x-4">
-                                             <button onClick={() => handleOpenEditModal(user)} className="text-indigo-400 hover:text-indigo-300 transition-colors" title={`Editar ${user.email}`}>
-                                                <EditIcon />
+
+                                        <div className="flex items-center gap-2.5 self-end sm:self-center">
+                                            <button 
+                                                onClick={() => handleOpenEditModal(user)} 
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/30 transition-all shadow-sm"
+                                                title={`Editar dados do usuário ${user.nickname}`}
+                                            >
+                                                <EditIcon className="w-3.5 h-3.5" />
+                                                <span>{isSelf ? 'Editar Meus Dados' : 'Editar'}</span>
                                             </button>
-                                            <button onClick={() => handleOpenDeleteConfirm(user)} className="text-rose-400 hover:text-rose-300 transition-colors" title={`Excluir ${user.email}`}>
-                                                <DeleteIcon />
-                                            </button>
+
+                                            {!isSelf ? (
+                                                <button 
+                                                    onClick={() => handleOpenDeleteConfirm(user)} 
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-rose-500/15 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 transition-all shadow-sm"
+                                                    title={`Excluir permanentemente ${user.nickname}`}
+                                                >
+                                                    <DeleteIcon className="w-3.5 h-3.5" />
+                                                    <span>Excluir</span>
+                                                </button>
+                                            ) : (
+                                                <span className="text-[11px] text-text-secondary/60 italic px-2 py-1 bg-secondary/50 rounded border border-border-color/40" title="A conta Master Admin principal não pode ser excluída">
+                                                    Conta Principal
+                                                </span>
+                                            )}
                                         </div>
-                                    )}
-                                </li>
-                            ))}
+                                    </li>
+                                );
+                            })}
                         </ul>
                     </div>
                 </div>
@@ -437,17 +528,137 @@ const UsersManager: React.FC<Pick<AdminPanelProps, 'users' | 'currentUser' | 'on
     );
 };
 
-const CustomizationPanel: React.FC<Pick<AdminPanelProps, 'currentUser' | 'onUpdateUser'>> = ({ currentUser, onUpdateUser }) => {
-    const [newBgDataUrl, setNewBgDataUrl] = useState<string | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
-    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+const SettingsPanel: React.FC<Pick<AdminPanelProps, 'currentUser' | 'ticketsMenuEnabled' | 'onToggleTicketsMenu'>> = ({
+    currentUser,
+    ticketsMenuEnabled = true,
+    onToggleTicketsMenu,
+}) => {
+    const [isTogglingTickets, setIsTogglingTickets] = useState(false);
+    const [ticketsFeedback, setTicketsFeedback] = useState<string | null>(null);
+
+    if (currentUser.role !== 'master') {
+        return (
+            <div className="p-8 text-center text-text-secondary">
+                Acesso restrito ao Master Admin.
+            </div>
+        );
+    }
+
+    const handleTicketsToggle = async (enabled: boolean) => {
+        if (!onToggleTicketsMenu || isTogglingTickets) return;
+        setIsTogglingTickets(true);
+        try {
+            await onToggleTicketsMenu(enabled);
+            setTicketsFeedback(enabled ? 'Menu de Chamados TI ativado com sucesso!' : 'Menu de Chamados TI desativado do cabeçalho e rodapé.');
+            setTimeout(() => setTicketsFeedback(null), 3500);
+        } catch (error) {
+            console.error('Failed to toggle tickets menu:', error);
+        } finally {
+            setIsTogglingTickets(false);
+        }
+    };
+
+    return (
+        <div className="space-y-8">
+            <div className="bg-card-background p-6 rounded-lg border border-border-color shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-border-color/60 gap-4 mb-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-text-primary flex items-center">
+                            <TicketIcon className="w-5 h-5 mr-2 text-accent" />
+                            Menu de Chamados de TI (Suporte Técnico)
+                        </h2>
+                        <p className="text-sm text-text-secondary mt-1">
+                            Ative ou desative o botão e menu "Chamados TI" no cabeçalho e rodapé para todos os usuários do portal.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => handleTicketsToggle(!ticketsMenuEnabled)}
+                            disabled={isTogglingTickets || !onToggleTicketsMenu}
+                            className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 ${
+                                ticketsMenuEnabled ? 'bg-emerald-500' : 'bg-slate-600'
+                            }`}
+                            role="switch"
+                            aria-checked={ticketsMenuEnabled}
+                            title={ticketsMenuEnabled ? 'Clique para desativar o menu' : 'Clique para ativar o menu'}
+                        >
+                            <span
+                                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                    ticketsMenuEnabled ? 'translate-x-7' : 'translate-x-0'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg bg-background/50 border border-border-color/70">
+                    <div className="flex items-center space-x-3">
+                        <div className={`p-2.5 rounded-lg ${ticketsMenuEnabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-slate-700/50 text-slate-400 border border-slate-600/30'}`}>
+                            <TicketIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                                Status do Menu:
+                                {ticketsMenuEnabled ? (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
+                                        Ativado (Visível no Portal)
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5"></span>
+                                        Desativado (Oculto no Portal)
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-xs text-text-secondary mt-1">
+                                {ticketsMenuEnabled
+                                    ? 'O atalho para a Central de Chamados de TI está ativo no cabeçalho e rodapé para todos os usuários do portal.'
+                                    : 'O atalho está oculto no cabeçalho e rodapé. Usuários normais não verão a opção. Você (Master Admin) tem privilégio exclusivo de reativá-lo a qualquer momento.'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => handleTicketsToggle(!ticketsMenuEnabled)}
+                        disabled={isTogglingTickets || !onToggleTicketsMenu}
+                        className={`px-4 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap shadow-sm ${
+                            ticketsMenuEnabled
+                                ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25'
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        }`}
+                    >
+                        {isTogglingTickets ? 'Atualizando...' : ticketsMenuEnabled ? 'Desativar Menu' : 'Ativar Menu'}
+                    </button>
+                </div>
+
+                {ticketsFeedback && (
+                    <div className="mt-3 p-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium animate-fade-in flex items-center">
+                        ✓ {ticketsFeedback}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const CustomizationPanel: React.FC<Pick<AdminPanelProps, 'currentUser' | 'onUpdateUser'>> = ({ 
+    currentUser, 
+    onUpdateUser,
+}) => {
+    const [pendingDayBg, setPendingDayBg] = useState<string | null>(null);
+    const [pendingNightBg, setPendingNightBg] = useState<string | null>(null);
+    const [isSavingBg, setIsSavingBg] = useState(false);
+    const [bgSaveSuccess, setBgSaveSuccess] = useState(false);
+
     const [nickname, setNickname] = useState(currentUser.nickname);
     const [isSavingNickname, setIsSavingNickname] = useState(false);
-    
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const [nicknameSuccess, setNicknameSuccess] = useState(false);
 
+    const processImageFile = (file: File, callback: (dataUrl: string) => void) => {
         const reader = new FileReader();
         reader.onload = (event) => {
             const img = new Image();
@@ -466,47 +677,114 @@ const CustomizationPanel: React.FC<Pick<AdminPanelProps, 'currentUser' | 'onUpda
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 if (!ctx) {
-                    setNewBgDataUrl(event.target?.result as string);
+                    callback(event.target?.result as string);
                     return;
                 }
                 ctx.drawImage(img, 0, 0, width, height);
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                setNewBgDataUrl(dataUrl);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+                callback(dataUrl);
             };
             img.src = event.target?.result as string;
         };
         reader.readAsDataURL(file);
     };
-    
-    const handleSaveLocalBg = async () => {
-        setIsSaving(true);
-        await onUpdateUser(currentUser.id, { preferences: { ...currentUser.preferences, customBackgroundUrl: newBgDataUrl || undefined } });
-        setNewBgDataUrl(null);
-        setIsSaving(false);
+
+    const handleDayFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        processImageFile(file, (dataUrl) => {
+            setPendingDayBg(dataUrl);
+        });
     };
-    
-    const handleRemoveBg = async () => {
-        setIsSaving(true);
-        await onUpdateUser(currentUser.id, { preferences: { ...currentUser.preferences, customBackgroundUrl: undefined } });
-        setIsSaving(false);
-        setNewBgDataUrl(null);
+
+    const handleNightFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        processImageFile(file, (dataUrl) => {
+            setPendingNightBg(dataUrl);
+        });
+    };
+
+    const currentDayBg = pendingDayBg !== null 
+        ? pendingDayBg 
+        : (currentUser.preferences?.customBackgroundDayUrl || currentUser.preferences?.customBackgroundUrl);
+
+    const currentNightBg = pendingNightBg !== null 
+        ? pendingNightBg 
+        : (currentUser.preferences?.customBackgroundNightUrl || currentUser.preferences?.customBackgroundUrl);
+
+    const hasPendingBgChanges = pendingDayBg !== null || pendingNightBg !== null;
+
+    const handleSaveBackgrounds = async () => {
+        setIsSavingBg(true);
+        try {
+            const updatedPrefs = {
+                ...currentUser.preferences,
+                ...(pendingDayBg !== null && { customBackgroundDayUrl: pendingDayBg || undefined }),
+                ...(pendingNightBg !== null && { customBackgroundNightUrl: pendingNightBg || undefined }),
+            };
+            await onUpdateUser(currentUser.id, { preferences: updatedPrefs });
+            setPendingDayBg(null);
+            setPendingNightBg(null);
+            setBgSaveSuccess(true);
+            setTimeout(() => setBgSaveSuccess(false), 3500);
+        } finally {
+            setIsSavingBg(false);
+        }
+    };
+
+    const handleRemoveDayBg = async () => {
+        setIsSavingBg(true);
+        try {
+            const updatedPrefs = {
+                ...currentUser.preferences,
+                customBackgroundDayUrl: undefined,
+            };
+            await onUpdateUser(currentUser.id, { preferences: updatedPrefs });
+            setPendingDayBg(null);
+        } finally {
+            setIsSavingBg(false);
+        }
+    };
+
+    const handleRemoveNightBg = async () => {
+        setIsSavingBg(true);
+        try {
+            const updatedPrefs = {
+                ...currentUser.preferences,
+                customBackgroundNightUrl: undefined,
+            };
+            await onUpdateUser(currentUser.id, { preferences: updatedPrefs });
+            setPendingNightBg(null);
+        } finally {
+            setIsSavingBg(false);
+        }
     };
 
     const handleSaveNickname = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!nickname.trim() || nickname === currentUser.nickname) return;
         setIsSavingNickname(true);
-        await onUpdateUser(currentUser.id, { nickname });
-        setIsSavingNickname(false);
+        try {
+            await onUpdateUser(currentUser.id, { nickname });
+            setNicknameSuccess(true);
+            setTimeout(() => setNicknameSuccess(false), 3000);
+        } finally {
+            setIsSavingNickname(false);
+        }
     };
-
-    const currentBgForPreview = newBgDataUrl || currentUser.preferences?.customBackgroundUrl;
-    const isBgUnsynced = currentUser.preferences?.customBackgroundUrl?.startsWith('data:');
 
     return (
         <div className="space-y-8">
-            <div className="bg-card-background p-6 rounded-lg border border-border-color">
-                <h2 className="text-2xl font-bold text-text-primary mb-4">Configurações de Perfil</h2>
+            {/* Nickname and Profile Settings */}
+            <div className="bg-card-background p-6 rounded-lg border border-border-color shadow-sm">
+                <h2 className="text-xl font-bold text-text-primary mb-2 flex items-center">
+                    <UserIcon className="w-5 h-5 mr-2 text-accent" />
+                    Configurações de Perfil
+                </h2>
+                <p className="text-sm text-text-secondary mb-4">
+                    Altere seu nome de exibição no sistema e no chat corporativo.
+                </p>
                 <form onSubmit={handleSaveNickname} className="max-w-md space-y-4">
                     <div>
                         <label htmlFor="nickname" className="block text-sm font-medium text-text-secondary mb-2">Apelido / Nome de Exibição</label>
@@ -515,58 +793,207 @@ const CustomizationPanel: React.FC<Pick<AdminPanelProps, 'currentUser' | 'onUpda
                             type="text"
                             value={nickname}
                             onChange={e => setNickname(e.target.value)}
-                            className="w-full px-4 py-2 bg-input-background border border-input-border rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                            className="w-full px-4 py-2 bg-input-background border border-input-border rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
+                            placeholder="Ex: Déio Master"
+                            required
                         />
                     </div>
-                    <button
-                        type="submit"
-                        disabled={isSavingNickname || nickname === currentUser.nickname || !nickname.trim()}
-                        className="px-6 py-2 rounded-md text-sm font-semibold text-white bg-accent hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                    >
-                        {isSavingNickname && <SpinnerIcon className="w-4 h-4 mr-2" />}
-                        Salvar Apelido
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="submit"
+                            disabled={isSavingNickname || nickname === currentUser.nickname || !nickname.trim()}
+                            className="px-5 py-2 rounded-md text-sm font-semibold text-white bg-accent hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors shadow-sm"
+                        >
+                            {isSavingNickname && <SpinnerIcon className="w-4 h-4 mr-2" />}
+                            Salvar Apelido
+                        </button>
+                        {nicknameSuccess && (
+                            <span className="text-sm text-emerald-400 font-medium animate-fade-in">
+                                ✓ Apelido atualizado com sucesso!
+                            </span>
+                        )}
+                    </div>
                 </form>
             </div>
 
-            <div className="bg-card-background p-6 rounded-lg border border-border-color">
-                <h2 className="text-2xl font-bold text-text-primary mb-4">Fundo da Página</h2>
-                <p className="text-sm text-text-secondary mb-6">Faça o upload de uma imagem para personalizar o fundo da aplicação.</p>
-                <div className="flex flex-col md:flex-row items-center gap-6">
-                    <div className="w-48 h-28 rounded-lg bg-background flex items-center justify-center overflow-hidden border-2 border-dashed border-border-color">
-                        {currentBgForPreview ? (
-                            <img src={currentBgForPreview} alt="Preview do fundo" className="w-full h-full object-cover" />
-                        ) : (
-                            <ImageIcon className="w-10 h-10 text-text-secondary/50" />
-                        )}
+
+
+            {/* Day and Night Theme Custom Backgrounds */}
+            <div className="bg-card-background p-6 rounded-lg border border-border-color shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 pb-4 border-b border-border-color/60 gap-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-text-primary flex items-center">
+                            <ImageIcon className="w-5 h-5 mr-2 text-accent" />
+                            Personalização de Fundo: Tema Dia e Noite
+                        </h2>
+                        <p className="text-sm text-text-secondary mt-1">
+                            Defina imagens independentes para o modo claro (Dia) e modo escuro (Noite). Salvas diretamente no banco de dados da sua VPS.
+                        </p>
                     </div>
-                    <div className="flex-grow space-y-4">
-                        <div className="flex flex-wrap items-center gap-4">
-                            <label htmlFor="bg-upload" className="cursor-pointer px-4 py-2 rounded-md text-sm font-semibold text-white bg-accent hover:bg-indigo-600 transition-colors">
-                                Escolher Imagem
-                                <input id="bg-upload" type="file" className="sr-only" accept="image/*" onChange={handleFileChange} />
+
+                    {hasPendingBgChanges && (
+                        <button
+                            onClick={handleSaveBackgrounds}
+                            disabled={isSavingBg}
+                            className="px-5 py-2.5 rounded-md text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center transition-all shadow-md self-start sm:self-auto"
+                        >
+                            {isSavingBg ? <SpinnerIcon className="w-4 h-4 mr-2" /> : null}
+                            {isSavingBg ? 'Salvando no Banco...' : 'Salvar Alterações de Fundo'}
+                        </button>
+                    )}
+                </div>
+
+                {bgSaveSuccess && (
+                    <div className="mb-6 p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm font-medium flex items-center">
+                        ✓ Imagens de Tema Dia e Noite salvas no banco de dados! Elas serão sincronizadas onde você fizer login.
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* TEMA DIA (MODO CLARO) */}
+                    <div className="border border-border-color/80 rounded-xl p-5 bg-background/50 flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center space-x-2">
+                                    <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                        <SunIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-text-primary">Tema Dia (Modo Claro)</h3>
+                                        <p className="text-xs text-text-secondary">Exibido quando o modo claro está ativo</p>
+                                    </div>
+                                </div>
+                                {currentDayBg ? (
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                        Ativo
+                                    </span>
+                                ) : (
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-400">
+                                        Padrão
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Preview Window */}
+                            <div className="w-full h-44 rounded-lg bg-slate-900/60 overflow-hidden border border-border-color relative shadow-inner mb-4 flex items-center justify-center group">
+                                {currentDayBg ? (
+                                    <img
+                                        src={currentDayBg}
+                                        alt="Fundo Modo Dia"
+                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center text-text-secondary/60 p-4 text-center">
+                                        <SunIcon className="w-10 h-10 mb-2 opacity-40 text-amber-400" />
+                                        <p className="text-xs">Nenhum fundo personalizado definido para o Tema Dia.</p>
+                                    </div>
+                                )}
+                                {pendingDayBg && (
+                                    <span className="absolute top-2 right-2 bg-amber-500 text-slate-950 font-bold text-[10px] px-2 py-0.5 rounded shadow">
+                                        Não salvo
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 pt-2">
+                            <label htmlFor="day-bg-upload" className="cursor-pointer px-4 py-2 rounded-md text-xs font-semibold text-white bg-accent hover:bg-indigo-600 transition-colors inline-flex items-center shadow-sm">
+                                <ImageIcon className="w-3.5 h-3.5 mr-1.5" />
+                                {currentDayBg ? 'Alterar Imagem do Dia' : 'Escolher Imagem do Dia'}
+                                <input id="day-bg-upload" type="file" className="sr-only" accept="image/*" onChange={handleDayFileChange} />
                             </label>
-                            {currentUser.preferences?.customBackgroundUrl && (
-                                <button onClick={handleRemoveBg} disabled={isSaving} className="px-4 py-2 rounded-md text-sm font-semibold text-text-primary bg-secondary hover:bg-background/50 border border-border-color disabled:opacity-50">
-                                    Remover Fundo
-                                </button>
-                            )}
-                             {isBgUnsynced && (
-                                <button onClick={() => setIsSyncModalOpen(true)} className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 transition-colors flex items-center">
-                                    <CloudUploadIcon className="w-4 h-4 mr-2" /> Sincronizar Imagem de Fundo
+
+                            {currentDayBg && (
+                                <button
+                                    onClick={handleRemoveDayBg}
+                                    disabled={isSavingBg}
+                                    className="px-3 py-2 rounded-md text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 disabled:opacity-50 transition-colors"
+                                >
+                                    Remover
                                 </button>
                             )}
                         </div>
-                        {newBgDataUrl && (
-                            <button onClick={handleSaveLocalBg} disabled={isSaving} className="px-6 py-2 rounded-md text-sm font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 flex items-center">
-                                {isSaving && <SpinnerIcon className="w-4 h-4 mr-2" />}
-                                Salvar Alteração
-                            </button>
-                        )}
+                    </div>
+
+                    {/* TEMA NOITE (MODO ESCURO) */}
+                    <div className="border border-border-color/80 rounded-xl p-5 bg-background/50 flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center space-x-2">
+                                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                        <MoonIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-text-primary">Tema Noite (Modo Escuro)</h3>
+                                        <p className="text-xs text-text-secondary">Exibido quando o modo escuro está ativo</p>
+                                    </div>
+                                </div>
+                                {currentNightBg ? (
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                        Ativo
+                                    </span>
+                                ) : (
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-400">
+                                        Padrão
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Preview Window */}
+                            <div className="w-full h-44 rounded-lg bg-slate-900/60 overflow-hidden border border-border-color relative shadow-inner mb-4 flex items-center justify-center group">
+                                {currentNightBg ? (
+                                    <img
+                                        src={currentNightBg}
+                                        alt="Fundo Modo Noite"
+                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center text-text-secondary/60 p-4 text-center">
+                                        <MoonIcon className="w-10 h-10 mb-2 opacity-40 text-indigo-400" />
+                                        <p className="text-xs">Nenhum fundo personalizado definido para o Tema Noite.</p>
+                                    </div>
+                                )}
+                                {pendingNightBg && (
+                                    <span className="absolute top-2 right-2 bg-amber-500 text-slate-950 font-bold text-[10px] px-2 py-0.5 rounded shadow">
+                                        Não salvo
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 pt-2">
+                            <label htmlFor="night-bg-upload" className="cursor-pointer px-4 py-2 rounded-md text-xs font-semibold text-white bg-accent hover:bg-indigo-600 transition-colors inline-flex items-center shadow-sm">
+                                <ImageIcon className="w-3.5 h-3.5 mr-1.5" />
+                                {currentNightBg ? 'Alterar Imagem da Noite' : 'Escolher Imagem da Noite'}
+                                <input id="night-bg-upload" type="file" className="sr-only" accept="image/*" onChange={handleNightFileChange} />
+                            </label>
+
+                            {currentNightBg && (
+                                <button
+                                    onClick={handleRemoveNightBg}
+                                    disabled={isSavingBg}
+                                    className="px-3 py-2 rounded-md text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 disabled:opacity-50 transition-colors"
+                                >
+                                    Remover
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
+
+                {hasPendingBgChanges && (
+                    <div className="mt-6 flex justify-end">
+                        <button
+                            onClick={handleSaveBackgrounds}
+                            disabled={isSavingBg}
+                            className="px-6 py-2.5 rounded-md text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 flex items-center transition-colors shadow-md"
+                        >
+                            {isSavingBg && <SpinnerIcon className="w-4 h-4 mr-2" />}
+                            Salvar Ambos os Fundos no Banco de Dados
+                        </button>
+                    </div>
+                )}
             </div>
-            {isSyncModalOpen && <SyncBgModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} currentUser={currentUser} />}
         </div>
     );
 };
@@ -574,7 +1001,7 @@ const CustomizationPanel: React.FC<Pick<AdminPanelProps, 'currentUser' | 'onUpda
 
 export const AdminPanel: React.FC<AdminPanelProps> = (props) => {
     const { currentUser, apps, onSaveAllApps, users, publicDashboardId, onSetPublicDashboard, onUpdateUser, dashboardProfiles, onAddDashboardProfile, onDeleteDashboardProfile, onCloneDashboard } = props;
-    const [activeTab, setActiveTab] = useState<'apps' | 'analytics' | 'users' | 'customization'>('apps');
+    const [activeTab, setActiveTab] = useState<'apps' | 'tickets' | 'analytics' | 'users' | 'customization'>('apps');
     
     const defaultInitialProfile = currentUser.role === 'master' ? 'default' : currentUser.id;
     const [activeProfileId, setActiveProfileId] = useState<string>(currentUser.preferences?.defaultAdminProfileId || defaultInitialProfile);
@@ -603,6 +1030,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = (props) => {
             setActiveProfileId(currentUser.id);
         }
     }, [dashboardProfiles, users, activeProfileId, currentUser.id]);
+
+    // Role security guard: Only Master Admin can access Analytics and Users
+    useEffect(() => {
+        if (currentUser.role !== 'master' && (activeTab === 'analytics' || activeTab === 'users')) {
+            setActiveTab('apps');
+        }
+    }, [currentUser.role, activeTab]);
 
     const isReadOnly = currentUser.role === 'admin' && activeProfileId === 'default';
 
@@ -826,6 +1260,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                     </div>
                 );
             case 'analytics':
+                if (currentUser.role !== 'master') return null;
                 return (
                     <ClickAnalyticsView
                         apps={apps}
@@ -837,9 +1272,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                  if (currentUser.role === 'master') return <UsersManager {...props} />;
                  return null;
             case 'customization':
-                return <CustomizationPanel {...props} />;
+                 return <CustomizationPanel {...props} />;
+            case 'settings':
+                 if (currentUser.role !== 'master') return null;
+                 return <SettingsPanel currentUser={currentUser} ticketsMenuEnabled={props.ticketsMenuEnabled} onToggleTicketsMenu={props.onToggleTicketsMenu} />;
+            case 'tickets':
+                 return (
+                     <div className="space-y-4">
+                         {props.ticketsMenuEnabled === false && (
+                             <div className="p-4 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                                 <div className="flex items-center gap-2.5">
+                                     <span className="text-lg">ℹ️</span>
+                                     <span>O menu <strong>Chamados TI</strong> está atualmente <strong>desativado</strong> no cabeçalho do portal. Você tem acesso administrativo exclusivo através desta aba.</span>
+                                 </div>
+                                 {props.onToggleTicketsMenu && (
+                                     <button
+                                         onClick={() => props.onToggleTicketsMenu!(true)}
+                                         className="px-3.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs whitespace-nowrap transition-colors shadow-sm flex items-center gap-1.5"
+                                     >
+                                         <TicketIcon className="w-3.5 h-3.5" />
+                                         Ativar Menu no Cabeçalho
+                                     </button>
+                                 )}
+                             </div>
+                         )}
+                         <TicketsView currentUser={currentUser} />
+                     </div>
+                 );
             default:
-                return null;
+                 return null;
         }
     };
 
@@ -847,16 +1308,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = (props) => {
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
             <h1 className="text-3xl font-bold text-text-primary mb-4">Painel de Administração</h1>
-            <p className="text-text-secondary mb-8">Bem-vindo, <span className="font-semibold text-accent">{currentUser.nickname}</span>.</p>
+            <p className="text-text-secondary mb-8">Bem-vindo, <span className="font-semibold text-accent">{currentUser.nickname}</span> {currentUser.role === 'master' ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 ml-2">Master Admin</span> : <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 ml-2">Usuário</span>}.</p>
 
             <div className="border-b border-border-color mb-8">
-                <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+                <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
                     <button onClick={() => setActiveTab('apps')} className={`${activeTab === 'apps' ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-slate-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}>
                         <ImageIcon className="w-4 h-4 mr-2" /> Aplicativos
                     </button>
-                    <button onClick={() => setActiveTab('analytics')} className={`${activeTab === 'analytics' ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-slate-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}>
-                        <ChartBarIcon className="w-4 h-4 mr-2" /> Estatísticas & Cliques
-                    </button>
+                    {(props.ticketsMenuEnabled !== false || currentUser.role === 'master') && (
+                        <button onClick={() => setActiveTab('tickets')} className={`${activeTab === 'tickets' ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-slate-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}>
+                            <TicketIcon className="w-4 h-4 mr-2" /> Chamados TI
+                            {props.ticketsMenuEnabled === false && currentUser.role === 'master' && (
+                                <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    Menu Oculto
+                                </span>
+                            )}
+                        </button>
+                    )}
+                    {currentUser.role === 'master' && (
+                        <button onClick={() => setActiveTab('analytics')} className={`${activeTab === 'analytics' ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-slate-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}>
+                            <ChartBarIcon className="w-4 h-4 mr-2" /> Estatísticas & Cliques
+                        </button>
+                    )}
                     {currentUser.role === 'master' && (
                         <button onClick={() => setActiveTab('users')} className={`${activeTab === 'users' ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-slate-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}>
                             <UserIcon className="w-4 h-4 mr-2" /> Usuários
@@ -865,6 +1338,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                     <button onClick={() => setActiveTab('customization')} className={`${activeTab === 'customization' ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-slate-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}>
                         <CogIcon className="w-4 h-4 mr-2" /> Personalização
                     </button>
+                    {currentUser.role === 'master' && (
+                        <button onClick={() => setActiveTab('settings')} className={`${activeTab === 'settings' ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-slate-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}>
+                            <CogIcon className="w-4 h-4 mr-2" /> Configurações
+                        </button>
+                    )}
                 </nav>
             </div>
 

@@ -274,43 +274,18 @@ export const EMBEDDED_ICONS: Record<string, string> = {
 
 /**
  * Maps known apps and URLs to their instant embedded SVG.
+ * Only applies to private intranet / internal LAN networks that cannot be resolved publicly.
  */
 export const getKnownServiceIcon = (name?: string, url?: string): string | null => {
   const n = (name || '').toLowerCase();
   const u = (url || '').toLowerCase();
 
+  // Intranet LAN items with no public internet DNS
   if (n.includes('new') && (n.includes('comaf') || u.includes('192.168.0.20'))) {
     return EMBEDDED_ICONS.comaf;
   }
   if (n.includes('old') && (n.includes('comaf') || u.includes('192.168.0.4'))) {
     return EMBEDDED_ICONS.comaf_old;
-  }
-  if (n.includes('comaf') || u.includes('comaf.ind.br') || u.includes('comaf.com')) {
-    if (n.includes('webmail') || u.includes('webmail')) {
-      return EMBEDDED_ICONS.webmail;
-    }
-    return EMBEDDED_ICONS.comaf;
-  }
-  if (n.includes('webmail') || u.includes('webmail')) {
-    return EMBEDDED_ICONS.webmail;
-  }
-  if (n.includes('google') || u.includes('google.com')) {
-    return EMBEDDED_ICONS.google;
-  }
-  if (n.includes('danfe') || n.includes('nfe') || u.includes('meudanfe.com.br')) {
-    return EMBEDDED_ICONS.nfe;
-  }
-  if (n.includes('partbase') || n.includes('partsbase') || u.includes('partsbase.com')) {
-    return EMBEDDED_ICONS.partbase;
-  }
-  if (n.includes('nsn') || u.includes('nsn-now.com')) {
-    return EMBEDDED_ICONS.nsn;
-  }
-  if (n.includes('stokesaas') || u.includes('stokesaas')) {
-    return EMBEDDED_ICONS.stokesaas;
-  }
-  if (n.includes('elitec') || u.includes('elitech')) {
-    return EMBEDDED_ICONS.elitec;
   }
   if (isLocalOrIntranetUrl(u)) {
     return EMBEDDED_ICONS.intranet;
@@ -327,16 +302,30 @@ export const getDuckDuckGoFaviconUrl = (domain: string): string => {
 };
 
 /**
- * Google S2 Favicon URL using 64px (much faster than 128px).
+ * Google S2 Favicon URL - retrieves authentic original high-resolution favicons.
  */
-export const getGoogleFaviconUrl = (domain: string, size: number = 64): string => {
+export const getGoogleFaviconUrl = (domain: string, size: number = 128): string => {
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;
+};
+
+/**
+ * Direct website favicon.ico URL
+ */
+export const getDirectFaviconUrl = (rawUrl: string): string => {
+  const domain = getDomainFromUrl(rawUrl);
+  if (!domain) return '';
+  let protocol = 'https:';
+  try {
+    const parsed = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+    protocol = parsed.protocol;
+  } catch {}
+  return `${protocol}//${domain}/favicon.ico`;
 };
 
 /**
  * In-memory & localStorage cache for resolved favicons to avoid repeated lookups.
  */
-const FAVICON_CACHE_KEY = 'deio-favicon-cache-v1';
+const FAVICON_CACHE_KEY = 'deio-favicon-cache-v2';
 const memoryCache = new Map<string, string>();
 
 const loadFaviconCache = () => {
@@ -360,8 +349,7 @@ export const cacheFavicon = (key: string, url: string) => {
   try {
     const obj: Record<string, string> = {};
     memoryCache.forEach((v, k) => {
-      // Keep only top 100 entries to avoid bloating storage
-      if (Object.keys(obj).length < 100) obj[k] = v;
+      if (Object.keys(obj).length < 150) obj[k] = v;
     });
     localStorage.setItem(FAVICON_CACHE_KEY, JSON.stringify(obj));
   } catch {
@@ -370,13 +358,22 @@ export const cacheFavicon = (key: string, url: string) => {
 };
 
 /**
- * Resolves the primary favicon URL instantly.
+ * Clear cached favicons to force a complete re-fetch of original favicons.
+ */
+export const clearFaviconCache = () => {
+  memoryCache.clear();
+  try {
+    localStorage.removeItem(FAVICON_CACHE_KEY);
+  } catch {}
+};
+
+/**
+ * Resolves the genuine original favicon URL for any website.
  * Prioritizes:
- * 1. Custom icon (if valid and not dead host)
- * 2. Embedded instant vector SVG for known services (0ms)
- * 3. Intranet server vector SVG for local LAN URLs (0ms)
- * 4. Fast DuckDuckGo CDN icon for public domains
- * 5. Instant Monogram SVG as guaranteed fallback
+ * 1. Custom icon provided by user (if valid and not dead host)
+ * 2. Original high-resolution Google S2 favicon (sz=128) - authentic brand logos
+ * 3. Intranet vector SVG for private LAN IPs
+ * 4. Monogram fallback
  */
 export const getFastFaviconUrl = (
   urlOrDomain: string,
@@ -388,7 +385,7 @@ export const getFastFaviconUrl = (
     return customIconUrl;
   }
 
-  // Check known services first (0ms)
+  // Check private intranet services (0ms)
   const knownIcon = getKnownServiceIcon(appName, urlOrDomain);
   if (knownIcon) return knownIcon;
 
@@ -397,29 +394,41 @@ export const getFastFaviconUrl = (
     return createMonogramSvg(appName || 'App');
   }
 
-  // Check memory cache
-  const cached = memoryCache.get(domain);
-  if (cached) return cached;
-
   // Local IPs cannot be queried via public favicon APIs
   if (isLocalOrIntranetUrl(urlOrDomain)) {
     return EMBEDDED_ICONS.intranet;
   }
 
-  // Return fastest CDN favicon: DuckDuckGo
-  return getDuckDuckGoFaviconUrl(domain);
+  // Check memory cache
+  const cached = memoryCache.get(domain);
+  if (cached) return cached;
+
+  // Primary: Official Google S2 original favicon in 128px high-resolution
+  return getGoogleFaviconUrl(domain, 128);
+};
+
+/**
+ * Helper to explicitly generate original favicon URL for an app/url.
+ */
+export const getOriginalFaviconUrl = (urlOrDomain: string): string => {
+  const domain = getDomainFromUrl(urlOrDomain);
+  if (!domain) return '';
+  if (isLocalOrIntranetUrl(urlOrDomain)) {
+    return EMBEDDED_ICONS.intranet;
+  }
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
 };
 
 /**
  * Legacy auto favicon helper (backward compatibility)
  */
-export const getAutoFaviconUrl = (urlOrDomain: string, size: number = 64): string => {
+export const getAutoFaviconUrl = (urlOrDomain: string, size: number = 128): string => {
   const domain = getDomainFromUrl(urlOrDomain) || urlOrDomain;
   if (!domain) return '';
   const known = getKnownServiceIcon(undefined, urlOrDomain);
   if (known) return known;
   if (isLocalOrIntranetUrl(urlOrDomain)) return EMBEDDED_ICONS.intranet;
-  return getDuckDuckGoFaviconUrl(domain);
+  return getGoogleFaviconUrl(domain, size);
 };
 
 /**

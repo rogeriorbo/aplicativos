@@ -3,6 +3,7 @@ import {
   getFastFaviconUrl,
   getDomainFromUrl,
   getGoogleFaviconUrl,
+  getDuckDuckGoFaviconUrl,
   createMonogramSvg,
   getKnownServiceIcon,
   cacheFavicon,
@@ -24,7 +25,7 @@ export const AppFavicon: React.FC<AppFaviconProps> = ({
   className = 'w-7 h-7 object-contain',
   alt
 }) => {
-  // Compute initial source with zero delay
+  // Compute initial source with zero delay (Original Favicon from Google S2 128px or custom)
   const initialSrc = React.useMemo(() => {
     return getFastFaviconUrl(url, name, iconUrl);
   }, [url, name, iconUrl]);
@@ -44,15 +45,27 @@ export const AppFavicon: React.FC<AppFaviconProps> = ({
     const known = getKnownServiceIcon(name, url);
 
     // Progression of fallbacks:
-    // Level 0: Failed initialSrc -> try known embedded vector SVG or Google S2 (sz=64)
+    // Level 0: Failed initialSrc -> try Google S2 (sz=64) or DuckDuckGo CDN
     if (fallbackLevelRef.current === 0) {
       fallbackLevelRef.current = 1;
+      if (domain) {
+        const duckUrl = getDuckDuckGoFaviconUrl(domain);
+        if (currentSrc !== duckUrl) {
+          setCurrentSrc(duckUrl);
+          return;
+        }
+      }
+    }
+
+    // Level 1: Failed DuckDuckGo -> try known vector or Google S2 (sz=32)
+    if (fallbackLevelRef.current === 1) {
+      fallbackLevelRef.current = 2;
       if (known && currentSrc !== known) {
         setCurrentSrc(known);
         return;
       }
       if (domain) {
-        const googleUrl = getGoogleFaviconUrl(domain, 64);
+        const googleUrl = getGoogleFaviconUrl(domain, 32);
         if (currentSrc !== googleUrl) {
           setCurrentSrc(googleUrl);
           return;
@@ -60,9 +73,9 @@ export const AppFavicon: React.FC<AppFaviconProps> = ({
       }
     }
 
-    // Level 1: Failed Google S2 -> use instant Monogram SVG (guaranteed to render 0ms)
-    if (fallbackLevelRef.current <= 1) {
-      fallbackLevelRef.current = 2;
+    // Level 2: Failed CDNs -> use instant Monogram SVG (guaranteed to render 0ms)
+    if (fallbackLevelRef.current <= 2) {
+      fallbackLevelRef.current = 3;
       const monogram = createMonogramSvg(name);
       setCurrentSrc(monogram);
       return;

@@ -274,9 +274,9 @@ export const AppFormModal: React.FC<AppFormModalProps> = ({ isOpen, onClose, onS
 
             {/* Icon Preview with Auto-Favicon */}
             <div className="flex flex-col items-center justify-center p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
-              <span className="text-xs font-medium text-text-secondary mb-2">Ícone / Favicon</span>
+              <span className="text-xs font-medium text-text-secondary mb-2">Favicon Original</span>
               <div className="w-16 h-16 rounded-xl bg-input-background border border-input-border flex items-center justify-center overflow-hidden mb-2 shadow-inner">
-                {url.trim() || currentDisplayIcon ? (
+                {url.trim() || iconUrl ? (
                   <AppFavicon
                     url={url}
                     name={name || 'Preview'}
@@ -288,14 +288,19 @@ export const AppFormModal: React.FC<AppFormModalProps> = ({ isOpen, onClose, onS
                 )}
               </div>
 
-              {domain && !isAutoFavicon && (
+              {domain && (
                 <button
                   type="button"
-                  onClick={handleUseAutoFavicon}
-                  className="text-[11px] text-accent hover:underline mb-1 flex items-center gap-1"
+                  onClick={() => {
+                    const original = getFastFaviconUrl(url, name);
+                    setIconUrl(original);
+                    setIsAutoFavicon(true);
+                  }}
+                  className="px-2.5 py-1 rounded text-[11px] font-semibold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 mb-1.5 flex items-center gap-1 transition-colors"
+                  title="Obter o Favicon Original do site via Google S2 HD"
                 >
                   <SparklesIcon className="w-3 h-3" />
-                  Favicon Auto
+                  Favicon Original
                 </button>
               )}
 
@@ -323,7 +328,7 @@ export const AppFormModal: React.FC<AppFormModalProps> = ({ isOpen, onClose, onS
                   }}
                   className="mt-1 text-[10px] text-rose-400 hover:underline"
                 >
-                  Limpar
+                  Limpar Ícone
                 </button>
               )}
             </div>

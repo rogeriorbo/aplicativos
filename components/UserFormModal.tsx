@@ -13,6 +13,7 @@ interface UserFormModalProps {
 export const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, onClose, onSave, userToEdit, allUsers }) => {
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');
+  const [role, setRole] = useState<'master' | 'admin'>('admin');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -22,9 +23,11 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, onClose, o
     if (userToEdit) {
       setEmail(userToEdit.email);
       setNickname(userToEdit.nickname);
+      setRole(userToEdit.role || 'admin');
     } else {
       setEmail('');
       setNickname('');
+      setRole('admin');
     }
     setPassword('');
     setError('');
@@ -57,6 +60,9 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, onClose, o
     if (nickname !== userToEdit?.nickname) {
         payload.nickname = nickname;
     }
+    if (role !== userToEdit?.role) {
+        payload.role = role;
+    }
     if (shouldResetPassword && password) {
         payload.password = password;
     }
@@ -88,6 +94,18 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, onClose, o
             <div>
                 <label htmlFor="user-email" className="block text-sm font-medium text-text-secondary mb-2">Email</label>
                 <input type="email" id="user-email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 bg-input-background border border-input-border rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+            <div>
+                <label htmlFor="user-role" className="block text-sm font-medium text-text-secondary mb-2">Perfil de Acesso</label>
+                <select
+                    id="user-role"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as 'master' | 'admin')}
+                    className="w-full px-4 py-2 bg-input-background border border-input-border rounded-md text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                    <option value="admin">Usuário Comum (Padrão)</option>
+                    <option value="master">Master Admin</option>
+                </select>
             </div>
 
             <div className="space-y-2">
