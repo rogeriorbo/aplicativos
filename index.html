@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6366f1" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Déio Informática - Gerenciador de Links</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link id="favicon" rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif', '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"'],
+            },
+            colors: {
+              'primary': 'var(--color-primary)',
+              'secondary': 'var(--color-secondary)',
+              'accent': 'var(--color-accent)',
+              'background': 'var(--color-background)',
+              'text-primary': 'var(--color-text-primary)',
+              'text-secondary': 'var(--color-text-secondary)',
+              'border-color': 'var(--color-border)',
+              'card-background': 'var(--color-card-background)',
+              'input-background': 'var(--color-input-background)',
+              'input-border': 'var(--color-input-border)',
+            }
+          }
+        }
+      }
+    </script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<style>
+  :root {
+    --color-primary: #4f46e5; /* indigo-600 */
+    --color-secondary: #ffffff; /* white */
+    --color-accent: #6366f1; /* indigo-500 */
+    --color-background: #f1f5f9; /* slate-100 */
+    --color-text-primary: #1e293b; /* slate-800 */
+    --color-text-secondary: #475569; /* slate-600 */
+    --color-border: #cbd5e1; /* slate-300 */
+    --color-card-background: rgba(255, 255, 255, 0.9);
+    --color-input-background: #ffffff;
+    --color-input-border: #cbd5e1; /* slate-300 */
+    --default-background-image: linear-gradient(135deg, #eef2ff 0%, #f1f5f9 50%, #e2e8f0 100%);
+    --dark-default-background-image: radial-gradient(ellipse at top, #1e1b4b 0%, #0f172a 60%, #020617 100%);
+  }
+
+  .dark {
+    --color-primary: #6366f1; /* indigo-500 */
+    --color-secondary: #1e293b; /* slate-800 */
+    --color-accent: #818cf8; /* indigo-400 */
+    --color-background: #0f172a; /* slate-900 */
+    --color-text-primary: #f1f5f9; /* slate-100 */
+    --color-text-secondary: #94a3b8; /* slate-400 */
+    --color-border: #334155; /* slate-700 */
+    --color-card-background: rgba(15, 23, 42, 0.7);
+    --color-input-background: #1e293b; /* slate-800 */
+    --color-input-border: #475569; /* slate-600 */
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    background-image: var(--default-background-image);
+    background-size: cover;
+    background-position: center center;
+    background-attachment: fixed;
+    transition: background-image 0.5s ease-in-out;
+  }
+
+  .dark body {
+    background-image: var(--dark-default-background-image);
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-background);
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-accent);
+    border-radius: 20px;
+    border: 3px solid var(--color-background);
+  }
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.15s ease-out forwards;
+  }
+  .animate-fade-in-scale {
+    animation: fadeInScale 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+</style>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="transition-colors duration-300">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

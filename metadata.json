@@ -1,0 +1,6 @@
+{
+  "name": "Déio Informática - Gerenciador de Links com BD",
+  "description": "Um site de página única para gerenciar e exibir uma lista de links de aplicativos, com uma área pública e um painel de administração protegido.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
